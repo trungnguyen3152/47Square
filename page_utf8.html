@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coming Soon | Xám 3D</title>
+    <link rel="icon" href="/xam3d_laravel/public/Image/icon3.png" type="image/png">
+    <link rel="preload" as="image" href="/xam3d_laravel/public/Image/logo9.png">
+    <link rel="stylesheet" href="/xam3d_laravel/public/style.css">
+    <style>
+        .text-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 40px;
+            z-index: 10;
+            position: relative;
+        }
+
+        .coming-soon-logo {
+            height: 140px;
+            margin-bottom: 25px;
+            border-radius: 16px;
+            background-color: #f6f6f4; /* Blocks transparent background */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            z-index: 99;
+        }
+        
+        .coming-soon-logo:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .text-code {
+            font-size: 5rem;
+            color: #111;
+            line-height: 1.1;
+            margin-bottom: 15px;
+            text-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+        }
+
+        .text-message {
+            font-size: 2rem;
+            color: #4b4b4d;
+            margin-bottom: 20px;
+        }
+
+        .text-description {
+            font-size: 1.4rem;
+            color: #000000;
+            margin-bottom: 40px;
+            max-width: 650px;
+            font-weight: normal;
+        }
+
+        .btn-home {
+            display: inline-block;
+            padding: 15px 30px;
+            background-color: #4b4b4d;
+            color: #fff;
+            text-decoration: none;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-home:hover {
+            background-color: #333;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-home:active {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        html, body {
+            overflow: hidden !important;
+            height: 100%;
+            width: 100%;
+            position: fixed;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" style="justify-content: center; height: 100vh; overflow: hidden;">
+        <div class="text-container">
+            <img src="/xam3d_laravel/public/Image/logo11.png" alt="Xám 3D Logo" class="coming-soon-logo" fetchpriority="high" decoding="sync">
+            <h1 class="text-code">Coming Soon</h1>
+            <h2 class="text-message">Xám 3D - 3D IoT & More</h2>
+            <p class="text-description">Tính năng này đang trong quá trình phát triển và sẽ sớm được ra mắt. Cảm ơn bạn đã quan tâm, mời bạn quay lại sau nhé!</p>
+           
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,75 @@
+@font-face {
+    font-family: 'KGBrokenVesselsSketch';
+    src: url('../fonts/SVN-KG Broken Vessels Sketch.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    background-color: #ffffff;
+    font-family: 'KGBrokenVesselsSketch', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    color: #333;
+}
+
+.text-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+    padding: 40px;
+    z-index: 10;
+    position: relative;
+}
+
+.coming-soon-logo {
+    height: 140px;
+    margin-bottom: 25px;
+    transition: transform 0.3s ease, filter 0.3s ease;
+    position: relative;
+    z-index: 99;
+    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.1));
+}
+
+.coming-soon-logo:hover {
+    transform: translateY(-5px);
+    filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.2));
+}
+
+.text-code {
+    font-size: 5rem;
+    color: #111;
+    line-height: 1.1;
+    margin-bottom: 15px;
+    text-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+    font-weight: 800;
+    margin-top: 0;
+}
+
+.text-message {
+    font-size: 2rem;
+    color: #4b4b4d;
+    margin-bottom: 20px;
+    font-weight: 600;
+    margin-top: 0;
+}
+
+.text-description {
+    font-size: 1.4rem;
+    color: #000000;
+    margin-bottom: 40px;
+    max-width: 650px;
+    font-weight: normal;
+    line-height: 1.5;
+}
+
+html, body {
+    overflow: hidden !important;
+    height: 100%;
+    width: 100%;
+    position: fixed;
+    touch-action: none;
+}
