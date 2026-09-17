@@ -2,7 +2,7 @@
     "$schema": "https://www.schemastore.org/package.json",
     "private": true,
     "engines": {
-        "node": "18.x"
+        "node": "24.x"
     },
     "scripts": {
         "build": "vite build",
