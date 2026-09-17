@@ -28,6 +28,7 @@
         "APP_ENV": "production",
         "APP_DEBUG": "false",
         "CACHE_DRIVER": "array",
+        "LOG_CHANNEL": "stderr",
         "SESSION_DRIVER": "cookie",
         "QUEUE_CONNECTION": "sync",
         "VIEW_COMPILED_PATH": "/tmp"
