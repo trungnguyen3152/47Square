@@ -53,6 +53,11 @@ def is_newer_version(candidate: str, current: str) -> bool:
     return _version_key(candidate) > _version_key(current)
 
 
+def _release_version(tag_name: str) -> str:
+    match = re.search(r"(?:^|[-_/])v?(\d+(?:\.\d+){0,2}(?:[-+][0-9A-Za-z.-]+)?)$", tag_name.strip())
+    return match.group(1) if match else tag_name.strip().lstrip("v")
+
+
 class GitHubReleaseClient:
     def __init__(self, repository: str, asset_name: str, channel: str = "stable"):
         repository = repository.strip().strip("/")
@@ -110,7 +115,7 @@ class GitHubReleaseClient:
         if not 0 < size <= MAX_FIRMWARE_SIZE:
             raise UpdateError("Kích thước firmware vượt quá phân vùng OTA")
         return FirmwareRelease(
-            version=str(release.get("tag_name", "")).lstrip("v"),
+            version=_release_version(str(release.get("tag_name", ""))),
             name=str(release.get("name") or release.get("tag_name") or "Firmware"),
             notes=str(release.get("body") or ""),
             asset_name=str(asset["name"]),

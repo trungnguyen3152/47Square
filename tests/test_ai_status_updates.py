@@ -12,7 +12,7 @@ class UpdateTests(unittest.TestCase):
 
     def test_latest_release_selects_named_asset_and_digest(self):
         payload = {
-            "tag_name": "v1.2.3",
+            "tag_name": "ai-status-light-v1.2.3",
             "name": "Stable",
             "body": "Notes",
             "prerelease": False,
