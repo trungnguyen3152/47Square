@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "powershell": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider copilot-app --event busy",
+        "timeoutSec": 10
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "powershell": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider copilot-app --event done",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

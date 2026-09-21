@@ -1,0 +1,19 @@
+{
+  "serial_port": "COM5",
+  "serial_baud": 115200,
+  "serial_timeout": 1.0,
+  "reset_delay": 2.0,
+  "reconnect_delay": 2.0,
+  "host": "127.0.0.1",
+  "port": 8765,
+  "client_timeout": 0.75,
+  "bridge_auth_token": "",
+  "github_repository": "OWNER/REPOSITORY",
+  "firmware_asset_name": "ai-status-light-esp32c3.bin",
+  "update_channel": "stable",
+  "auto_check_updates": true,
+  "green_hold_seconds": 0.0,
+  "typing_process_names": ["ChatGPT.exe"],
+  "status_beeps": {"RED": 0, "YELLOW": 0, "GREEN": 2},
+  "devices": []
+}

@@ -1,0 +1,7 @@
+{
+  "dart.flutterSdkPath": "C:\\flutter",
+  "chat.useHooks": true,
+  "chat.hookFilesLocations": {
+    "~/.copilot/hooks": true
+  }
+}

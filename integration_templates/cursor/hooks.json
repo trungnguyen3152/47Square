@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider cursor --event busy",
+        "timeout": 10
+      }
+    ],
+    "stop": [
+      {
+        "command": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider cursor --event done",
+        "timeout": 10
+      }
+    ]
+  }
+}

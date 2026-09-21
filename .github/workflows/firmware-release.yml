@@ -1,0 +1,41 @@
+name: Firmware Release
+
+on:
+  push:
+    tags:
+      - "ai-status-light-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.10 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+      - name: Build common OTA firmware
+        run: |
+          cp firmware/security_config.example.h firmware/security_config.h
+          printf '#pragma once\n\n#define FIRMWARE_VERSION "%s"\n' "${GITHUB_REF_NAME#ai-status-light-v}" > firmware/firmware_version.h
+          mkdir -p dist
+          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C3 --output-dir dist firmware
+          mv dist/firmware.ino.bin dist/ai-status-light-esp32c3.bin
+          sha256sum dist/ai-status-light-esp32c3.bin > dist/ai-status-light-esp32c3.bin.sha256
+
+      - name: Create immutable-ready draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/ai-status-light-esp32c3.bin \
+            dist/ai-status-light-esp32c3.bin.sha256 \
+            --draft --generate-notes --title "${GITHUB_REF_NAME}"
+          gh release edit "${GITHUB_REF_NAME}" --draft=false

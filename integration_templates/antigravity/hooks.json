@@ -1,0 +1,19 @@
+{
+  "ai-status-light": {
+    "enabled": true,
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider antigravity --event busy",
+        "timeout": 5
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider antigravity --event done",
+        "timeout": 5
+      }
+    ]
+  }
+}

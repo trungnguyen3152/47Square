@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+bridge*.log
+.ai_status_state*
+.ai_status_typing_watcher.lock
+firmware/security_config.h
+updates/
+config.json
+build/
+.agents/
+.codex/
+.ai_status_projects.json
+.ai_status_bridge.lock
+integration-events.jsonl
+tests/tmp*/

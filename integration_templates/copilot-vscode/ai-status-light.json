@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider copilot-vscode --event busy",
+        "windows": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider copilot-vscode --event busy",
+        "timeout": 10
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider copilot-vscode --event done",
+        "windows": "py -3 C:\\Users\\admin\\Desktop\\ai-status\\ai_status_universal_hook.py --provider copilot-vscode --event done",
+        "timeout": 10
+      }
+    ]
+  }
+}
