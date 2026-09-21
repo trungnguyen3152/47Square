@@ -4,8 +4,11 @@ Run the migration in `migrations/202609220001_device_registry.sql` once in the
 Supabase SQL Editor. It creates:
 
 - `devices`: factory identity, firmware, lifecycle, owner and key fingerprint.
-- `device_assignments`: one active AI/project assignment per device.
 - `device_events`: append-only lifecycle and firmware audit history.
+
+Then run `migrations/202609220002_remove_device_assignments.sql`. AI and project
+selection stays only in the local desktop configuration; it is intentionally
+excluded from the central release registry.
 
 RLS is enabled on every table. Anonymous access is revoked. Authenticated users
 can only read rows belonging to their own `auth.uid()`. Provisioning and all
