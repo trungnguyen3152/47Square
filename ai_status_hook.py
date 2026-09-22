@@ -8,6 +8,7 @@ import sys
 import time
 import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -18,6 +19,27 @@ from ai_status_projects import canonical_project, register_project, resolve_even
 PROJECT_DIR = Path(__file__).resolve().parent
 STATE_PATH = PROJECT_DIR / ".ai_status_state.json"
 LOCK_PATH = PROJECT_DIR / ".ai_status_state.lock"
+EVENT_LOG = PROJECT_DIR / "integration-events.jsonl"
+
+
+def append_status_event(status: str, provider: str = "", project: str = "", event: str = "") -> None:
+    command = "GREEN" if status.upper() == "DONE" else status.upper()
+    event_name = event or {
+        "RED": "red",
+        "YELLOW": "busy",
+        "GREEN": "done",
+        "OFF": "off",
+    }.get(command, command.casefold())
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "provider": provider or "app",
+        "event": event_name,
+        "status": command,
+        "session_id": "",
+        "project": canonical_project(project),
+    }
+    with EVENT_LOG.open("a", encoding="utf-8") as event_log:
+        event_log.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 @contextmanager
@@ -206,6 +228,7 @@ def set_hook_status(status: str, provider: str = "", project: str = "") -> str:
     with state_lock():
         write_state(token, command, provider, project)
         send_with_bridge_start(command, provider, project)
+    append_status_event(command, provider, project)
     if command == "GREEN":
         delay = float(config["green_hold_seconds"])
         if delay > 0:
@@ -220,6 +243,7 @@ def red_after(token: str, delay: float, provider: str = "", project: str = "") -
             return
         write_state(uuid.uuid4().hex, "RED", provider, project)
         send_with_bridge_start("RED", provider, project)
+    append_status_event("RED", provider, project, "idle")
 
 
 def complete_if_current(token: str, provider: str = "", project: str = "") -> None:
@@ -232,6 +256,7 @@ def complete_if_current(token: str, provider: str = "", project: str = "") -> No
         green_token = uuid.uuid4().hex
         write_state(green_token, "GREEN", provider, project)
         send_with_bridge_start("GREEN", provider, project)
+    append_status_event("GREEN", provider, project)
     delay = float(config["green_hold_seconds"])
     if delay > 0:
         spawn_red_timer(green_token, delay, provider, project)
@@ -245,6 +270,7 @@ def cancel_if_current(token: str, provider: str = "", project: str = "") -> None
             return
         write_state(uuid.uuid4().hex, "RED", provider, project)
         send_with_bridge_start("RED", provider, project)
+    append_status_event("RED", provider, project, "cancel")
 
 
 def watch_turn(token: str, transcript_path: str, turn_id: str, provider: str = "", project: str = "") -> None:

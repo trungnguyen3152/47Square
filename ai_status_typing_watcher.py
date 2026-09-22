@@ -229,6 +229,8 @@ def mark_typing_started(provider: str = "", project: str = "") -> bool:
             return False
         write_state(uuid.uuid4().hex, "RED", provider, project)
         send_with_bridge_start("RED", provider, project)
+    from ai_status_hook import append_status_event
+    append_status_event("RED", provider, project, "typing")
     return True
 
 
@@ -337,7 +339,6 @@ def monitor_claude_completion(token: str, project: str = "") -> None:
             from ai_status_hook import complete_if_current
 
             complete_if_current(token, "claude-desktop", project)
-            _append_claude_event("done", "GREEN")
             return
 
 

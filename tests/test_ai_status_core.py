@@ -6,9 +6,28 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from ai_status_core import DEFAULT_CONFIG, SerialController, StatusError, load_config, normalize_decor_effect, normalize_status, send_decor_to_bridge, send_to_bridge, stop_decor
+from ai_status_hook import append_status_event
 
 
 class StatusTests(unittest.TestCase):
+    def test_status_history_records_all_light_states(self):
+        import ai_status_hook
+
+        event_log = Path(__file__).with_name(".status-history-test.jsonl")
+        try:
+            with patch.object(ai_status_hook, "EVENT_LOG", event_log):
+                append_status_event("RED", "codex", "C:/work", "typing")
+                append_status_event("YELLOW", "codex", "C:/work")
+                append_status_event("DONE", "codex", "C:/work")
+                records = [
+                    json.loads(line)
+                    for line in event_log.read_text(encoding="utf-8").splitlines()
+                ]
+        finally:
+            event_log.unlink(missing_ok=True)
+        self.assertEqual([record["status"] for record in records], ["RED", "YELLOW", "GREEN"])
+        self.assertEqual([record["event"] for record in records], ["typing", "busy", "done"])
+
     def test_normalize_status(self):
         self.assertEqual(normalize_status(" green \n"), "GREEN")
 

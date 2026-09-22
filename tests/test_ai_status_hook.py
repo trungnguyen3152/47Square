@@ -13,10 +13,12 @@ class HookCancellationTests(unittest.TestCase):
             patch.object(hook, "read_state", return_value={"token": "turn-1", "status": "YELLOW"}),
             patch.object(hook, "write_state") as write,
             patch.object(hook, "send_with_bridge_start") as send,
+            patch.object(hook, "append_status_event") as append,
         ):
             hook.cancel_if_current("turn-1", "codex")
         self.assertEqual(write.call_args.args[1:], ("RED", "codex", ""))
         send.assert_called_once_with("RED", "codex", "")
+        append.assert_called_once_with("RED", "codex", "", "cancel")
 
     def test_transcript_turn_aborted_uses_cancel_path(self):
         transcript = Path(__file__).with_name(".turn-aborted-test.jsonl")

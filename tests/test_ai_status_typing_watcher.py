@@ -39,11 +39,13 @@ class TypingWatcherTests(unittest.TestCase):
             patch.object(watcher, "read_state", return_value={"token": "old", "status": "YELLOW"}),
             patch.object(watcher, "write_state") as write,
             patch.object(watcher, "send_with_bridge_start") as send,
+            patch("ai_status_hook.append_status_event") as append,
         ):
             changed = watcher.mark_typing_started("cursor")
         self.assertTrue(changed)
         self.assertEqual(write.call_args.args[1:], ("RED", "cursor", ""))
         send.assert_called_once_with("RED", "cursor", "")
+        append.assert_called_once_with("RED", "cursor", "", "typing")
 
 
 if __name__ == "__main__":

@@ -110,7 +110,6 @@ def run_hook(provider: str, event: str, payload: dict[str, Any]) -> None:
     ]
     project = resolve_event_project(provider, payload, configured)
     project = register_project(provider, project, session_id)
-    append_event(provider, effective_event, payload, project)
     set_hook_status(EVENT_TO_STATUS[effective_event], provider, project)
 
 

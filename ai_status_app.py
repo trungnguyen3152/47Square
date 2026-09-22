@@ -756,9 +756,15 @@ class App(tk.Tk):
             row = tk.Frame(self.event_list, bg=PANEL); row.pack(fill="x", pady=3)
             status = str(event.get("status", "OFF")).replace("DONE", "GREEN"); color = STATUS_COLORS.get(status, OFF)
             tk.Label(row, text="●", fg=color, bg=PANEL, font=("Segoe UI", 11, "bold")).pack(side="left")
-            provider = PROVIDER_NAMES.get(str(event.get("provider", "")), str(event.get("provider", "AI")))
+            provider_key = str(event.get("provider", ""))
+            provider = PROVIDER_NAMES.get(provider_key, "Phần mềm" if provider_key == "app" else provider_key or "AI")
             tk.Label(row, text=provider, fg=TEXT, bg=PANEL, font=("Segoe UI", 9, "bold")).pack(side="left", padx=(8, 5))
-            action = "hoàn thành" if status == "GREEN" else "đang xử lý" if status == "YELLOW" else status.lower()
+            action = {
+                "GREEN": "hoàn thành",
+                "YELLOW": "đang xử lý",
+                "RED": "sẵn sàng",
+                "OFF": "đã tắt",
+            }.get(status, status.lower())
             tk.Label(row, text=action, fg=MUTED, bg=PANEL, font=("Segoe UI", 9)).pack(side="left")
             try: stamp = datetime.fromisoformat(str(event.get("timestamp", "")).replace("Z", "+00:00")).astimezone().strftime("%H:%M")
             except ValueError: stamp = ""

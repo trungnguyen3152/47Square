@@ -85,12 +85,10 @@ class UniversalHookTests(unittest.TestCase):
 
     def test_aborted_stop_returns_red_instead_of_green(self):
         with (
-            patch.object(universal, "append_event") as append,
             patch.object(universal, "set_hook_status") as status,
             patch.object(universal, "resolve_event_project", return_value=""),
         ):
             universal.run_hook("cursor", "done", {"status": "aborted"})
-        append.assert_called_once_with("cursor", "cancel", {"status": "aborted"}, "")
         status.assert_called_once_with("RED", "cursor", "")
 
 
