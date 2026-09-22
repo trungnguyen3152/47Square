@@ -297,11 +297,16 @@ class App(tk.Tk):
             status = tk.Label(info, text="●  Đang kiểm tra", fg=YELLOW, bg=PANEL, font=("Segoe UI", 9, "bold"))
             status.pack(anchor="w", pady=(5, 0)); self.device_status_labels[port] = status
             assignment = tk.Frame(card, bg=PANEL); assignment.pack(side="right", padx=(10, 18), pady=16)
-            tk.Label(assignment, text="AI", fg=MUTED, bg=PANEL, font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w")
-            tk.Label(assignment, text="Project hoạt động", fg=MUTED, bg=PANEL, font=("Segoe UI", 9)).grid(row=0, column=1, sticky="w", padx=(10, 0))
+            tk.Label(assignment, text="Cổng kết nối", fg=MUTED, bg=PANEL, font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w")
+            tk.Label(assignment, text="AI", fg=MUTED, bg=PANEL, font=("Segoe UI", 9)).grid(row=0, column=1, sticky="w", padx=(10, 0))
+            tk.Label(assignment, text="Project hoạt động", fg=MUTED, bg=PANEL, font=("Segoe UI", 9)).grid(row=0, column=2, sticky="w", padx=(10, 0))
+            tk.Label(
+                assignment, text=port, fg=CYAN, bg="#112C3A",
+                font=("Segoe UI", 10, "bold"), width=10, pady=9,
+            ).grid(row=1, column=0, sticky="ew", pady=(5, 0))
             allowed = ["Chưa gán"] + [item.name for item in INTEGRATIONS]
             combo = ttk.Combobox(assignment, style="Neon.TCombobox", state="readonly", values=allowed, width=19)
-            combo.grid(row=1, column=0, sticky="w", pady=(5, 0)); combo.set(PROVIDER_LABELS.get(current, "Chưa gán"))
+            combo.grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(5, 0)); combo.set(PROVIDER_LABELS.get(current, "Chưa gán"))
             combo.bind("<<ComboboxSelected>>", lambda _event, selected_port=port: self._assign_device(selected_port))
             self.device_combos[port] = combo
             configured = [str(item.get("project", "")) for item in devices if str(item.get("provider", "")) == current]
@@ -314,14 +319,13 @@ class App(tk.Tk):
                 assignment, style="Neon.TCombobox", state="readonly" if current else "disabled",
                 values=available or (["Chưa tìm thấy project"] if current else []), width=34,
             )
-            project_box.grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(5, 0))
+            project_box.grid(row=1, column=2, sticky="w", padx=(10, 0), pady=(5, 0))
             if current_project:
                 project_box.set(current_project)
             elif current and not available:
                 project_box.set("Chưa tìm thấy project")
             project_box.bind("<<ComboboxSelected>>", lambda _event, selected_port=port: self._assign_project(selected_port))
             self.device_project_combos[port] = project_box
-            tk.Label(card, text=port, fg=CYAN, bg="#112C3A", font=("Segoe UI", 11, "bold"), padx=13, pady=8).pack(side="right", padx=(0, 8))
 
     def _assign_device(self, port: str) -> None:
         label = self.device_combos[port].get()
