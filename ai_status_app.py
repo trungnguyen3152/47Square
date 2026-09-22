@@ -47,6 +47,16 @@ DECOR_EFFECTS = {
 }
 
 
+def device_display_names(devices) -> dict[str, str]:
+    """Return public device labels without exposing board model information."""
+    labels: dict[str, str] = {}
+    for device in devices:
+        port = str(device.get("port", "")).strip()
+        if port and port not in labels:
+            labels[port] = f"AI Status Light - {len(labels) + 1}"
+    return labels
+
+
 class ActionButton(tk.Button):
     def __init__(self, master, *, text: str, command, accent: bool = False, **kwargs):
         bg = PURPLE if accent else PANEL_2
@@ -281,6 +291,7 @@ class App(tk.Tk):
         self.device_status_labels.clear()
         self.device_combos.clear()
         self.device_project_combos.clear()
+        display_names = device_display_names(devices)
         for device in devices:
             port = str(device.get("port", ""))
             current = str(device.get("provider", ""))
@@ -293,7 +304,7 @@ class App(tk.Tk):
             art.create_rectangle(23, 27, 65, 61, fill=PANEL_2, outline=PURPLE)
             art.create_text(44, 44, text="ESP32", fill=TEXT, font=("Segoe UI", 9, "bold"))
             info = tk.Frame(card, bg=PANEL); info.pack(side="left", fill="both", expand=True, pady=18)
-            tk.Label(info, text=str(device.get("name", "AI Status Light - 1")), fg=TEXT, bg=PANEL, font=("Segoe UI", 14, "bold")).pack(anchor="w")
+            tk.Label(info, text=display_names[port], fg=TEXT, bg=PANEL, font=("Segoe UI", 14, "bold")).pack(anchor="w")
             status = tk.Label(info, text="●  Đang kiểm tra", fg=YELLOW, bg=PANEL, font=("Segoe UI", 9, "bold"))
             status.pack(anchor="w", pady=(5, 0)); self.device_status_labels[port] = status
             assignment = tk.Frame(card, bg=PANEL); assignment.pack(side="right", padx=(10, 18), pady=16)
@@ -339,7 +350,7 @@ class App(tk.Tk):
                     item["project"] = ""
                     found = True
             if not found:
-                devices.append({"id": f"esp32-{port.casefold()}", "name": "ESP32", "port": port, "provider": provider, "project": ""})
+                devices.append({"id": f"esp32-{port.casefold()}", "name": f"AI Status Light - {len(devices) + 1}", "port": port, "provider": provider, "project": ""})
             config["devices"] = devices
         self._write_config(update)
         self._reset_device(port)
@@ -837,8 +848,13 @@ class App(tk.Tk):
                         label, metric, color = "●  Bridge ngoại tuyến", "Offline", RED
                     elif physical_online:
                         online_ports = [port for port, online in devices.items() if online]
-                        configured = {str(item.get("port", "")): str(item.get("name", "ESP32")) for item in load_config().get("devices", [])}
-                        names = [configured.get(port, port) for port in online_ports]
+                        configured_devices = list(load_config().get("devices", []))
+                        known_ports = {str(item.get("port", "")) for item in configured_devices}
+                        configured_devices.extend(
+                            {"port": port} for port in devices if port not in known_ports
+                        )
+                        public_names = device_display_names(configured_devices)
+                        names = [public_names[port] for port in online_ports]
                         count = len(online_ports)
                         label = f"●  {count} thiết bị: {', '.join(names)}"
                         metric, color = f"{count} thiết bị", GREEN

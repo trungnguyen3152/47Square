@@ -124,7 +124,7 @@ class DeviceRouter:
             return [
                 {
                     "id": str(item.get("id", item.get("port", ""))),
-                    "name": str(item.get("name", "ESP32")),
+                    "name": str(item.get("name", "AI Status Light")),
                     "port": str(item.get("port", "")),
                     "provider": str(item.get("provider", "")),
                     "project": canonical_project(item.get("project", "")),
@@ -132,7 +132,7 @@ class DeviceRouter:
                 for item in configured
                 if str(item.get("port", "")).strip()
             ]
-        return [{"id": str(config["serial_port"]), "name": "ESP32", "port": str(config["serial_port"]), "provider": "", "project": ""}]
+        return [{"id": str(config["serial_port"]), "name": "AI Status Light - 1", "port": str(config["serial_port"]), "provider": "", "project": ""}]
 
     def controller_for(self, port: str, config: dict) -> SerialController:
         key = port.casefold()
