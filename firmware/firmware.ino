@@ -1,6 +1,6 @@
 // AI status light firmware for XIAO ESP32-C3.
 // Wiring: D1/GPIO3=red, D2/GPIO4=yellow, D3/GPIO5=green,
-// D4/GPIO6=active buzzer.
+// D4/GPIO6=passive buzzer.
 
 #include <esp_system.h>
 #include <esp_ota_ops.h>
@@ -354,11 +354,11 @@ void printFirmwareDebug() {
 }
 
 void beepOnce() {
-  // D4 drives an active buzzer: one HIGH envelope must equal one audible beep.
-  // Applying the tone API here rapidly power-cycles the buzzer's internal oscillator
-  // and makes a single configured beep sound like several short chirps.
-  writeOutput(BUZZER_PIN, true);
+  // The installed passive buzzer needs an AC waveform. The desktop timeout
+  // prevents this 180 ms tone envelope from causing duplicate status retries.
+  tone(BUZZER_PIN, 2400);
   delay(180);
+  noTone(BUZZER_PIN);
   writeOutput(BUZZER_PIN, false);
 }
 
