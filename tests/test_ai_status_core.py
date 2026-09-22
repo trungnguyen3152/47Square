@@ -103,6 +103,15 @@ class StatusTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_config("test-config.json")
 
+    def test_load_config_rejects_invalid_status_effect(self):
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            Path,
+            "read_text",
+            return_value=json.dumps({"status_effects": {"RED": "STATIC", "YELLOW": "RAINBOW", "GREEN": "BLINK"}}),
+        ):
+            with self.assertRaises(ValueError):
+                load_config("test-config.json")
+
     def test_load_config_rejects_invalid_device_auth_key(self):
         devices = [{"port": "COM5", "auth_key": "not-a-key"}]
         with patch.object(Path, "exists", return_value=True), patch.object(

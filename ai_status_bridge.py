@@ -180,7 +180,11 @@ class DeviceRouter:
         with self.lock:
             for device in targets:
                 port = device["port"]
-                self.controller_for(port, config).send(command, beep_count)
+                controller = self.controller_for(port, config)
+                controller.send(command, beep_count)
+                effect = str(config.get("status_effects", {}).get(command, "STATIC"))
+                if command != "OFF" and effect != "STATIC":
+                    controller.send_decor(effect, {"RED": 1, "YELLOW": 2, "GREEN": 4}[command], 55)
                 delivered.append(port)
         return delivered
 

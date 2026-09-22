@@ -157,7 +157,7 @@ class App(tk.Tk):
         self.last_event_signature = (-1, "")
         self.available_firmware_release = None
         self._connection_check_running = False
-        self._styles(); self._shell(); self._dashboard(); self._devices(); self._decor(); self._integrations(); self._updates(); self._settings()
+        self._styles(); self._shell(); self._dashboard(); self._devices(); self._decor(); self._integrations(); self._settings()
         self.show_page("dashboard")
         self.after(150, self._poll)
         if load_config().get("auto_check_updates") and load_config().get("github_repository"):
@@ -179,7 +179,7 @@ class App(tk.Tk):
         mark.create_rectangle(3, 9, 10, 16, fill=PURPLE_2, outline=""); mark.create_rectangle(12, 9, 18, 15, fill=CYAN, outline=""); mark.create_rectangle(3, 18, 9, 24, fill=PINK, outline="")
         tk.Label(logo, text="AI Status", fg=TEXT, bg=SHELL, font=("Segoe UI", 14, "bold")).pack(side="left", pady=18, padx=(4, 0))
         nav = tk.Frame(header, bg=SHELL); nav.pack(side="left", padx=35, fill="y")
-        for key, label in (("dashboard", "Tổng quan"), ("devices", "Thiết bị"), ("decor", "Decor"), ("integrations", "Tích hợp"), ("updates", "Cập nhật"), ("settings", "Cài đặt")):
+        for key, label in (("dashboard", "Tổng quan"), ("devices", "Thiết bị"), ("decor", "Decor"), ("integrations", "Tích hợp"), ("settings", "Cài đặt")):
             button = tk.Button(nav, text=label, command=lambda page=key: self.show_page(page), bg=SHELL, fg=MUTED,
                                activebackground=SHELL, activeforeground=TEXT, relief="flat", bd=0, cursor="hand2",
                                font=("Segoe UI", 10), padx=17, pady=22)
@@ -218,7 +218,7 @@ class App(tk.Tk):
         ActionButton(buttons, text="Tắt", command=lambda: self.send_status("OFF")).pack(side="left", padx=10)
         self.hero_visual = HeroVisual(hero); self.hero_visual.pack(side="right", padx=(0, 27), pady=14)
         metrics = tk.Frame(page, bg=SHELL); metrics.pack(fill="x")
-        self.metric_connection = self._metric(metrics, "KẾT NỐI", "Đang kiểm tra", "Bridge + ESP32", CYAN)
+        self.metric_connection = self._metric(metrics, "KẾT NỐI", "Đang kiểm tra", "Đang nhận diện thiết bị", CYAN)
         self._metric(metrics, "TÍCH HỢP", "6 AI", "Đã cấu hình", PURPLE_2)
         self.metric_events = self._metric(metrics, "HOẠT ĐỘNG", "0", "Sự kiện hôm nay", PINK)
         activity = self._card(page, fill="both", expand=True, pady=(14, 0))
@@ -233,7 +233,10 @@ class App(tk.Tk):
         content = tk.Frame(card, bg=PANEL); content.pack(side="left", fill="both", expand=True, padx=17, pady=12)
         tk.Label(content, text=eyebrow, fg=color, bg=PANEL, font=("Segoe UI", 8, "bold")).pack(anchor="w")
         label = tk.Label(content, text=value, fg=TEXT, bg=PANEL, font=("Segoe UI", 15, "bold")); label.pack(anchor="w", pady=(2, 0))
-        tk.Label(content, text=caption, fg=MUTED, bg=PANEL, font=("Segoe UI", 9)).pack(anchor="w"); return label
+        caption_label = tk.Label(content, text=caption, fg=MUTED, bg=PANEL, font=("Segoe UI", 9))
+        caption_label.pack(anchor="w")
+        label.caption_label = caption_label
+        return label
 
     def _devices(self):
         page = self._page("devices"); self._title(page, "Thiết bị", "Quản lý phần cứng thiết bị và kiểm tra tín hiệu đầu ra")
@@ -488,9 +491,7 @@ class App(tk.Tk):
             self.result_queue.put(("integration", json.dumps({"provider": provider, "state": state, "message": message}, ensure_ascii=False)))
         threading.Thread(target=run, daemon=True).start()
 
-    def _updates(self):
-        page = self._page("updates")
-        self._title(page, "Cập nhật firmware", "Nhận bản phát hành từ GitHub Releases và nạp an toàn qua USB")
+    def _updates(self, page):
         cfg = load_config()
 
         source = self._card(page, fill="x")
@@ -613,7 +614,28 @@ class App(tk.Tk):
 
     def _settings(self):
         page = self._page("settings"); self._title(page, "Cài đặt", "Tinh chỉnh kết nối và hành vi của AI Status Light")
-        cfg = load_config(); connection = self._card(page, fill="x")
+        tabs = tk.Frame(page, bg=SHELL); tabs.pack(fill="x", pady=(0, 12))
+        body = tk.Frame(page, bg=SHELL); body.pack(fill="both", expand=True)
+        general_page = tk.Frame(body, bg=SHELL)
+        update_page = tk.Frame(body, bg=SHELL)
+        tab_buttons = {}
+
+        def show_settings_tab(name):
+            general_page.pack_forget(); update_page.pack_forget()
+            target = general_page if name == "general" else update_page
+            target.pack(fill="both", expand=True)
+            for key, button in tab_buttons.items():
+                button.configure(bg=PURPLE if key == name else PANEL_2)
+
+        for key, label in (("general", "Thiết lập chung"), ("updates", "Cập nhật firmware")):
+            button = tk.Button(
+                tabs, text=label, command=lambda selected=key: show_settings_tab(selected),
+                bg=PANEL_2, fg=TEXT, activebackground=PURPLE, activeforeground=TEXT,
+                relief="flat", bd=0, cursor="hand2", font=("Segoe UI", 9, "bold"), padx=16, pady=8,
+            )
+            button.pack(side="left", padx=(0, 8)); tab_buttons[key] = button
+
+        cfg = load_config(); connection = self._card(general_page, fill="x")
         tk.Label(connection, text="Kết nối thiết bị", fg=TEXT, bg=PANEL, font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=22, pady=(18, 14))
         form = tk.Frame(connection, bg=PANEL); form.pack(fill="x", padx=22, pady=(0, 20))
         tk.Label(form, text="Cổng serial", fg=MUTED, bg=PANEL).grid(row=0, column=0, sticky="w")
@@ -623,25 +645,47 @@ class App(tk.Tk):
         baud = ttk.Combobox(form, style="Neon.TCombobox", state="readonly", values=(9600, 57600, 115200), width=20)
         baud.grid(row=1, column=1, sticky="w", pady=(6, 0), padx=(0, 14)); baud.set(str(cfg["serial_baud"]))
         ActionButton(form, text="Làm mới cổng", command=self.refresh_ports).grid(row=1, column=2, pady=(6, 0))
-        sound = self._card(page, fill="x", pady=14)
-        tk.Label(sound, text="Âm báo theo màu", fg=TEXT, bg=PANEL, font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=22, pady=(18, 5))
-        tk.Label(sound, text="Mỗi trạng thái có thể tắt âm hoặc phát 1–3 tiếng bíp riêng.", fg=MUTED, bg=PANEL).pack(anchor="w", padx=22)
+        sound = self._card(general_page, fill="x", pady=14)
+        tk.Label(sound, text="Thiết lập chức năng từng màu", fg=TEXT, bg=PANEL, font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=22, pady=(18, 5))
+        tk.Label(sound, text="Chọn âm báo và hiệu ứng riêng cho từng trạng thái đèn.", fg=MUTED, bg=PANEL).pack(anchor="w", padx=22)
         beep_row = tk.Frame(sound, bg=PANEL); beep_row.pack(fill="x", padx=22, pady=16)
         self.beep_boxes = {}
+        self.effect_boxes = {}
         options = ("Tắt", "1 tiếng bíp", "2 tiếng bíp", "3 tiếng bíp")
+        effect_labels = ("Đèn sáng", "Sáng dần · tối dần", "Chớp liên tục")
+        effect_values = ("STATIC", "BREATHING", "BLINK")
         for column, (state, label, color) in enumerate((("RED", "Đèn đỏ", RED), ("YELLOW", "Đèn vàng", YELLOW), ("GREEN", "Đèn xanh", GREEN))):
-            group = tk.Frame(beep_row, bg=PANEL); group.grid(row=0, column=column, sticky="w", padx=(0, 16))
-            tk.Label(group, text=f"●  {label}", fg=color, bg=PANEL, font=("Segoe UI", 9, "bold")).pack(anchor="w")
-            combo = ttk.Combobox(group, style="Neon.TCombobox", state="readonly", values=options, width=17)
+            group = tk.Frame(beep_row, bg=PANEL_2, highlightbackground=BORDER, highlightthickness=1)
+            group.grid(row=0, column=column, sticky="nsew", padx=(0, 12))
+            beep_row.grid_columnconfigure(column, weight=1)
+            inner = tk.Frame(group, bg=PANEL_2); inner.pack(fill="both", padx=14, pady=12)
+            tk.Label(inner, text=f"●  {label}", fg=color, bg=PANEL_2, font=("Segoe UI", 10, "bold")).pack(anchor="w")
+            tk.Label(inner, text="Âm báo", fg=MUTED, bg=PANEL_2, font=("Segoe UI", 8)).pack(anchor="w", pady=(10, 0))
+            combo = ttk.Combobox(inner, style="Neon.TCombobox", state="readonly", values=options, width=20)
             combo.pack(anchor="w", pady=(6, 0)); combo.current(int(cfg["status_beeps"][state]))
             combo.bind("<<ComboboxSelected>>", lambda _event, selected_state=state: self._save_beep(selected_state))
             self.beep_boxes[state] = combo
-        ActionButton(beep_row, text="▶  Kiểm tra tín hiệu", command=lambda: self.send_status("GREEN"), accent=True).grid(row=0, column=3, sticky="s", pady=(0, 1))
+            tk.Label(inner, text="Hiệu ứng LED", fg=MUTED, bg=PANEL_2, font=("Segoe UI", 8)).pack(anchor="w", pady=(10, 0))
+            effect_box = ttk.Combobox(inner, style="Neon.TCombobox", state="readonly", values=effect_labels, width=20)
+            effect_box.pack(anchor="w", pady=(6, 0))
+            effect_box.current(effect_values.index(str(cfg["status_effects"][state])))
+            effect_box.bind("<<ComboboxSelected>>", lambda _event, selected_state=state: self._save_effect(selected_state))
+            self.effect_boxes[state] = effect_box
+        ActionButton(sound, text="▶  Kiểm tra đèn xanh", command=lambda: self.send_status("GREEN"), accent=True).pack(anchor="w", padx=22, pady=(0, 16))
+
+        self._updates(update_page)
+        show_settings_tab("general")
 
     def _save_beep(self, state: str) -> None:
         count = self.beep_boxes[state].current()
         self._write_config(lambda config: config["status_beeps"].__setitem__(state, count))
         self.connection_pill.configure(text=f"●  Đã lưu {state}: {count} bíp", fg=GREEN)
+
+    def _save_effect(self, state: str) -> None:
+        effects = ("STATIC", "BREATHING", "BLINK")
+        effect = effects[self.effect_boxes[state].current()]
+        self._write_config(lambda config: config["status_effects"].__setitem__(state, effect))
+        self.connection_pill.configure(text=f"●  Đã lưu hiệu ứng {state}", fg=GREEN)
 
     def _serial_ports(self):
         try:
@@ -788,11 +832,21 @@ class App(tk.Tk):
                     if not bridge_online:
                         label, metric, color = "●  Bridge ngoại tuyến", "Offline", RED
                     elif physical_online:
-                        label, metric, color = "●  Đã kết nối", "Online", GREEN
+                        online_ports = [port for port, online in devices.items() if online]
+                        configured = {str(item.get("port", "")): str(item.get("name", "ESP32")) for item in load_config().get("devices", [])}
+                        names = [configured.get(port, port) for port in online_ports]
+                        count = len(online_ports)
+                        label = f"●  {count} thiết bị: {', '.join(names)}"
+                        metric, color = f"{count} thiết bị", GREEN
                     else:
                         label, metric, color = "●  Chưa kết nối thiết bị", "No device", RED
                     self.connection_pill.configure(text=label, fg=color)
                     self.metric_connection.configure(text=metric, fg=color)
+                    self.metric_connection.caption_label.configure(
+                        text=", ".join(names) if bridge_online and physical_online else (
+                            "Bridge đang chạy, chưa thấy ESP32" if bridge_online else "Bridge ngoại tuyến"
+                        )
+                    )
                     for port, status_label in self.device_status_labels.items():
                         online = bool(devices.get(port, False))
                         status_label.configure(

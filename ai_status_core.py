@@ -42,6 +42,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "green_hold_seconds": 0.0,
     "typing_process_names": ["ChatGPT.exe"],
     "status_beeps": {"RED": 0, "YELLOW": 0, "GREEN": 2},
+    "status_effects": {"RED": "STATIC", "YELLOW": "STATIC", "GREEN": "STATIC"},
     "devices": [],
 }
 
@@ -120,6 +121,11 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
         raise ValueError("status_beeps must define RED, YELLOW, and GREEN")
     if not all(isinstance(count, int) and 0 <= count <= 3 for count in status_beeps.values()):
         raise ValueError("status beep counts must be integers from 0 to 3")
+    status_effects = config["status_effects"]
+    if not isinstance(status_effects, dict) or set(status_effects) != {"RED", "YELLOW", "GREEN"}:
+        raise ValueError("status_effects must define RED, YELLOW, and GREEN")
+    if not all(effect in {"STATIC", "BREATHING", "BLINK"} for effect in status_effects.values()):
+        raise ValueError("status effects must be STATIC, BREATHING, or BLINK")
     devices = config["devices"]
     if not isinstance(devices, list):
         raise ValueError("devices must be a list")

@@ -10,6 +10,7 @@ class DeviceRouterTests(unittest.TestCase):
         value = DEFAULT_CONFIG.copy()
         value["devices"] = devices
         value["status_beeps"] = {"RED": 1, "YELLOW": 2, "GREEN": 3}
+        value["status_effects"] = {"RED": "STATIC", "YELLOW": "STATIC", "GREEN": "STATIC"}
         return value
 
     def test_provider_routes_only_to_assigned_device(self):
@@ -86,6 +87,19 @@ class DeviceRouterTests(unittest.TestCase):
         self.assertEqual(delivered, ["COM7"])
         controllers["COM5"].send_decor.assert_not_called()
         controllers["COM7"].send_decor.assert_called_once_with("COMET", 7, 80)
+
+    def test_status_effect_runs_after_beep_for_assigned_color(self):
+        config = self.config([{"port": "COM5", "provider": "codex", "project": "C:/one"}])
+        config["status_effects"]["YELLOW"] = "BREATHING"
+        router = DeviceRouter()
+        controller = MagicMock()
+        with patch("ai_status_bridge.load_config", return_value=config), patch.object(
+            router, "controller_for", return_value=controller
+        ):
+            delivered = router.send("YELLOW", provider="codex", project="C:/one")
+        self.assertEqual(delivered, ["COM5"])
+        controller.send.assert_called_once_with("YELLOW", 2)
+        controller.send_decor.assert_called_once_with("BREATHING", 2, 55)
 
     def test_stop_decor_targets_only_requested_device(self):
         config = self.config([{"port": "COM5", "provider": "codex", "project": "C:/one"}])
