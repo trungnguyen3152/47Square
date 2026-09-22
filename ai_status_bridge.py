@@ -114,6 +114,7 @@ class DeviceRouter:
     def __init__(self):
         self.controllers: dict[str, SerialController] = {}
         self.suspended_ports: set[str] = set()
+        self.last_routed_status: dict[tuple[str, str, str], str] = {}
         self.lock = threading.Lock()
 
     @staticmethod
@@ -175,16 +176,21 @@ class DeviceRouter:
             targets = devices
         if not targets:
             return []
-        beep_count = int(config["status_beeps"].get(command, 0)) if command != "OFF" else 0
+        configured_beeps = int(config["status_beeps"].get(command, 0)) if command != "OFF" else 0
         delivered: list[str] = []
         with self.lock:
             for device in targets:
                 port = device["port"]
                 controller = self.controller_for(port, config)
+                route_key = (port.casefold(), provider, project)
+                duplicate = bool(provider) and self.last_routed_status.get(route_key) == command
+                beep_count = 0 if duplicate else configured_beeps
                 controller.send(command, beep_count)
                 effect = str(config.get("status_effects", {}).get(command, "STATIC"))
                 if command != "OFF" and effect != "STATIC":
                     controller.send_decor(effect, {"RED": 1, "YELLOW": 2, "GREEN": 4}[command], 55)
+                if provider:
+                    self.last_routed_status[route_key] = command
                 delivered.append(port)
         return delivered
 

@@ -101,6 +101,31 @@ class DeviceRouterTests(unittest.TestCase):
         controller.send.assert_called_once_with("YELLOW", 2)
         controller.send_decor.assert_called_once_with("BREATHING", 2, 55)
 
+    def test_duplicate_completion_does_not_repeat_buzzer(self):
+        config = self.config([{"port": "COM5", "provider": "codex", "project": "C:/one"}])
+        router = DeviceRouter()
+        controller = MagicMock()
+        with patch("ai_status_bridge.load_config", return_value=config), patch.object(
+            router, "controller_for", return_value=controller
+        ):
+            router.send("GREEN", provider="codex", project="C:/one")
+            router.send("GREEN", provider="codex", project="C:/one")
+        self.assertEqual(
+            [call.args for call in controller.send.call_args_list],
+            [("GREEN", 3), ("GREEN", 0)],
+        )
+
+    def test_new_turn_rearms_completion_buzzer(self):
+        config = self.config([{"port": "COM5", "provider": "codex", "project": "C:/one"}])
+        router = DeviceRouter()
+        controller = MagicMock()
+        with patch("ai_status_bridge.load_config", return_value=config), patch.object(
+            router, "controller_for", return_value=controller
+        ):
+            for status in ("GREEN", "YELLOW", "GREEN"):
+                router.send(status, provider="codex", project="C:/one")
+        self.assertEqual(controller.send.call_args_list[-1].args, ("GREEN", 3))
+
     def test_stop_decor_targets_only_requested_device(self):
         config = self.config([{"port": "COM5", "provider": "codex", "project": "C:/one"}])
         router = DeviceRouter()
