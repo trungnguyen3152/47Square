@@ -9,7 +9,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import ttk
+from tkinter import filedialog, ttk
 
 from ai_status_core import load_config, send_decor_to_bridge, send_to_bridge, stop_decor
 from ai_status_hook import read_state, set_hook_status
@@ -18,6 +18,7 @@ from ai_status_projects import canonical_project, discover_projects
 from ai_status_updates import (
     FirmwareRollbackError,
     GitHubReleaseClient,
+    MAX_FIRMWARE_SIZE,
     SupabaseDeviceEventClient,
     inspect_device,
     install_firmware,
@@ -508,45 +509,54 @@ class App(tk.Tk):
 
     def _updates(self, page):
         cfg = load_config()
-
-        source = self._card(page, fill="x")
-        tk.Label(source, text="Nguồn GitHub Releases", fg=TEXT, bg=PANEL, font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=22, pady=(18, 5))
-        tk.Label(source, text="Nhập repository theo dạng owner/repository. ESP32 không cần Wi-Fi.", fg=MUTED, bg=PANEL).pack(anchor="w", padx=22)
-        source_row = tk.Frame(source, bg=PANEL); source_row.pack(fill="x", padx=22, pady=16)
-        self.update_repository = tk.Entry(source_row, bg=PANEL_2, fg=TEXT, insertbackground=TEXT,
-                                          relief="flat", bd=0, font=("Segoe UI", 10), width=45)
-        self.update_repository.pack(side="left", ipady=11, padx=(0, 10))
-        self.update_repository.insert(0, str(cfg.get("github_repository", "")))
-        ActionButton(source_row, text="Kiểm tra bản mới", command=self._check_firmware_updates, accent=True).pack(side="left")
-
-        release = self._card(page, fill="x", pady=14)
-        release_body = tk.Frame(release, bg=PANEL); release_body.pack(fill="x", padx=22, pady=20)
-        self.update_status = tk.Label(release_body, text="●  Chưa kiểm tra", fg=MUTED, bg=PANEL,
+        online = self._card(page, fill="x")
+        tk.Label(online, text="Cập nhật online", fg=TEXT, bg=PANEL, font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=22, pady=(18, 5))
+        online_body = tk.Frame(online, bg=PANEL); online_body.pack(fill="x", padx=22, pady=(0, 16))
+        self.update_status = tk.Label(online_body, text="●  Chưa kiểm tra", fg=MUTED, bg=PANEL,
                                       font=("Segoe UI", 12, "bold"))
         self.update_status.pack(anchor="w")
-        self.update_detail = tk.Label(release_body, text="Firmware trên GitHub sẽ được kiểm tra SHA-256 trước khi nạp.",
+        ports = ", ".join(str(item.get("port", "")) for item in cfg.get("devices", [])) or "Chưa có thiết bị"
+        self.update_detail = tk.Label(online_body, text=f"Cổng: {ports} · Phiên bản: đang kiểm tra",
                                       fg=MUTED, bg=PANEL, justify="left")
-        self.update_detail.pack(anchor="w", pady=(6, 16))
-        self.update_button = ActionButton(release_body, text="Cập nhật tất cả thiết bị", command=self._install_firmware_update)
-        self.update_button.pack(anchor="w")
+        self.update_detail.pack(anchor="w", pady=(6, 12))
+        online_actions = tk.Frame(online_body, bg=PANEL); online_actions.pack(anchor="w")
+        ActionButton(online_actions, text="Kiểm tra phiên bản", command=self._check_firmware_updates).pack(side="left")
+        self.update_button = ActionButton(online_actions, text="Cập nhật online", command=self._install_firmware_update, accent=True)
+        self.update_button.pack(side="left", padx=(10, 0))
         self.update_button.configure(state="disabled")
+
+        manual = self._card(page, fill="x", pady=14)
+        tk.Label(manual, text="Cập nhật thủ công bằng file", fg=TEXT, bg=PANEL, font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=22, pady=(18, 5))
+        tk.Label(manual, text="Chọn file firmware .bin và cổng cần cập nhật.", fg=MUTED, bg=PANEL).pack(anchor="w", padx=22)
+        manual_row = tk.Frame(manual, bg=PANEL); manual_row.pack(fill="x", padx=22, pady=(12, 8))
+        self.manual_port_box = ttk.Combobox(
+            manual_row, style="Neon.TCombobox", state="readonly",
+            values=[str(item.get("port", "")) for item in cfg.get("devices", [])], width=16,
+        )
+        self.manual_port_box.pack(side="left", padx=(0, 10))
+        if cfg.get("devices"):
+            self.manual_port_box.set(str(cfg["devices"][0].get("port", "")))
+        ActionButton(manual_row, text="Chọn file .bin", command=self._choose_manual_firmware).pack(side="left")
+        self.manual_update_button = ActionButton(manual_row, text="Cập nhật thủ công", command=self._install_manual_firmware, accent=True)
+        self.manual_update_button.pack(side="left", padx=(10, 0)); self.manual_update_button.configure(state="disabled")
+        self.manual_firmware_path = None
+        self.manual_update_status = tk.Label(
+            manual, text="●  Chưa chọn file", fg=MUTED, bg=PANEL, font=("Segoe UI", 10, "bold")
+        )
+        self.manual_update_status.pack(anchor="w", padx=22, pady=(0, 16))
 
         safety = self._card(page, fill="x")
         tk.Label(safety, text="Bảo vệ cập nhật", fg=TEXT, bg=PANEL, font=("Segoe UI", 13, "bold")).pack(anchor="w", padx=22, pady=(18, 7))
-        tk.Label(safety, text="✓ GitHub asset digest SHA-256   ✓ HMAC theo từng ESP32   ✓ Ghi vào phân vùng OTA dự phòng\nKhông rút cáp USB trong lúc thanh tiến trình đang chạy.",
+        tk.Label(safety, text="✓ Kiểm tra tính toàn vẹn   ✓ Xác thực riêng từng thiết bị   ✓ Phân vùng cập nhật dự phòng\nKhông rút cáp USB trong lúc thanh tiến trình đang chạy.",
                  fg=MUTED, bg=PANEL, justify="left").pack(anchor="w", padx=22, pady=(0, 18))
 
-    def _save_update_repository(self, repository: str) -> None:
-        repository = repository.strip().strip("/")
-        self._write_config(lambda config: config.__setitem__("github_repository", repository))
-
     def _check_firmware_updates(self) -> None:
-        repository = self.update_repository.get().strip().strip("/")
+        config = load_config()
+        repository = str(config.get("github_repository", "")).strip().strip("/")
         if not repository:
-            self.update_status.configure(text="●  Chưa nhập GitHub repository", fg=RED)
+            self.update_status.configure(text="●  Nguồn cập nhật chưa được cấu hình", fg=RED)
             return
-        self._save_update_repository(repository)
-        self.update_status.configure(text="●  Đang kiểm tra GitHub...", fg=YELLOW)
+        self.update_status.configure(text="●  Đang kiểm tra phiên bản...", fg=YELLOW)
         self.update_button.configure(state="disabled")
 
         def run():
@@ -557,16 +567,80 @@ class App(tk.Tk):
                 devices = list(config.get("devices", []))
                 versions = []
                 for device in devices:
-                    version, hardware_id = inspect_device(config, device)
-                    versions.append({"port": device["port"], "version": version, "hardware_id": hardware_id})
+                    version, _hardware_id = inspect_device(config, device)
+                    versions.append({"port": device["port"], "version": version})
                 self.available_firmware_release = release
                 available = any(is_newer_version(release.version, item["version"]) for item in versions)
                 self.result_queue.put(("update-check", json.dumps({
                     "available": available, "latest": release.version, "devices": versions,
-                    "name": release.name,
                 }, ensure_ascii=False)))
+            except Exception:
+                self.result_queue.put(("update-error", "Không thể kiểm tra hoặc cập nhật online"))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _choose_manual_firmware(self) -> None:
+        selected = filedialog.askopenfilename(
+            title="Chọn firmware AI Status Light",
+            filetypes=(("Firmware binary", "*.bin"),),
+        )
+        if not selected:
+            return
+        firmware = Path(selected)
+        try:
+            size = firmware.stat().st_size
+            if firmware.suffix.casefold() != ".bin" or not 0 < size <= MAX_FIRMWARE_SIZE:
+                raise ValueError
+        except (OSError, ValueError):
+            self.manual_firmware_path = None
+            self.manual_update_status.configure(text="●  File firmware không hợp lệ", fg=RED)
+            self.manual_update_button.configure(state="disabled")
+            return
+        self.manual_firmware_path = firmware
+        self.manual_update_status.configure(text=f"●  File .bin hợp lệ · {size // 1024} KB", fg=GREEN)
+        self.manual_update_button.configure(state="normal" if self.manual_port_box.get() else "disabled")
+
+    def _install_manual_firmware(self) -> None:
+        firmware = self.manual_firmware_path
+        port = self.manual_port_box.get()
+        if firmware is None or not port:
+            return
+        self.manual_update_button.configure(state="disabled")
+        self.manual_update_status.configure(text="●  Đang chuẩn bị cập nhật...", fg=YELLOW)
+
+        def progress(done: int, total: int) -> None:
+            self.result_queue.put(("manual-update-progress", str(int(done * 100 / max(1, total)))))
+
+        def run():
+            try:
+                config = load_config()
+                device = next(item for item in config.get("devices", []) if str(item.get("port", "")) == port)
+                previous_version, hardware_id = inspect_device(config, device)
+                event_client = SupabaseDeviceEventClient.from_config(config)
+                event_token = str(device.get("event_token", ""))
+
+                def record(event_type: str, version: str, metadata: dict[str, object]) -> None:
+                    if event_client is not None and event_token:
+                        event_client.record(hardware_id, event_token, event_type, version, metadata)
+
+                record("firmware_update_started", previous_version, {"source": "manual-file", "port": port})
+                try:
+                    result = install_firmware(config, device, firmware, progress)
+                except FirmwareRollbackError as exc:
+                    record("firmware_rollback", previous_version, {"source": "manual-file", "reason": str(exc)})
+                    raise
+                except Exception as exc:
+                    try:
+                        record("firmware_update_failed", previous_version, {"source": "manual-file", "reason": str(exc)})
+                    except Exception:
+                        pass
+                    raise
+                record("firmware_update_succeeded", result.current_version, {
+                    "source": "manual-file", "previous_version": result.previous_version,
+                    "device_status": result.update_status,
+                })
+                self.result_queue.put(("manual-update-done", json.dumps({"port": port, "version": result.current_version})))
             except Exception as exc:
-                self.result_queue.put(("update-error", str(exc)))
+                self.result_queue.put(("manual-update-error", str(exc)))
         threading.Thread(target=run, daemon=True).start()
 
     def _install_firmware_update(self) -> None:
@@ -623,8 +697,8 @@ class App(tk.Tk):
                         "device_status": result.update_status,
                     })
                 self.result_queue.put(("update-done", release.version))
-            except Exception as exc:
-                self.result_queue.put(("update-error", str(exc)))
+            except Exception:
+                self.result_queue.put(("update-error", "Không thể hoàn tất cập nhật online"))
         threading.Thread(target=run, daemon=True).start()
 
     def _settings(self):
@@ -886,22 +960,33 @@ class App(tk.Tk):
                     self.integration_buttons[provider].configure(text="Cài lại" if state == "active" else "Thử lại", state="normal")
                 elif kind == "update-check":
                     result = json.loads(value)
-                    versions = ", ".join(f"{item['port']}: v{item['version']}" for item in result["devices"]) or "Chưa có thiết bị"
+                    versions = " · ".join(f"Cổng {item['port']}: v{item['version']}" for item in result["devices"]) or "Chưa có thiết bị"
                     if result["available"]:
-                        self.update_status.configure(text=f"●  Có firmware v{result['latest']}", fg=GREEN)
-                        self.update_detail.configure(text=f"{result['name']}\nThiết bị: {versions}")
+                        self.update_status.configure(text=f"●  Có phiên bản v{result['latest']}", fg=GREEN)
+                        self.update_detail.configure(text=versions)
                         self.update_button.configure(state="normal")
                     else:
                         self.update_status.configure(text="●  Thiết bị đã ở phiên bản mới nhất", fg=GREEN)
-                        self.update_detail.configure(text=f"GitHub: v{result['latest']} · {versions}")
+                        self.update_detail.configure(text=f"Phiên bản mới nhất: v{result['latest']} · {versions}")
                 elif kind == "update-progress":
                     self.update_status.configure(text=f"●  Đang cập nhật {value}%", fg=YELLOW)
                 elif kind == "update-done":
                     self.update_status.configure(text=f"●  Đã cập nhật firmware v{value}", fg=GREEN)
-                    self.update_detail.configure(text="ESP32 đã xác minh SHA-256 và khởi động lại thành công.")
+                    self.update_detail.configure(text="Thiết bị đã xác minh và khởi động lại thành công.")
                 elif kind == "update-error":
                     self.update_status.configure(text=f"●  Lỗi cập nhật: {value}", fg=RED)
                     self.update_button.configure(state="normal" if self.available_firmware_release else "disabled")
+                elif kind == "manual-update-progress":
+                    self.manual_update_status.configure(text=f"●  Đang cập nhật {value}%", fg=YELLOW)
+                elif kind == "manual-update-done":
+                    result = json.loads(value)
+                    self.manual_update_status.configure(
+                        text=f"●  Cổng {result['port']} đã cập nhật v{result['version']}", fg=GREEN
+                    )
+                    self.manual_update_button.configure(state="normal")
+                elif kind == "manual-update-error":
+                    self.manual_update_status.configure(text=f"●  Lỗi cập nhật: {value}", fg=RED)
+                    self.manual_update_button.configure(state="normal" if self.manual_firmware_path else "disabled")
         except queue.Empty: pass
         now = datetime.now().timestamp()
         if not hasattr(self, "_next_ping") or now >= self._next_ping: self._next_ping = now + 3; self._check_connection()
