@@ -156,6 +156,7 @@ class App(tk.Tk):
         self.last_status = ""
         self.last_event_signature = (-1, "")
         self.available_firmware_release = None
+        self._connection_check_running = False
         self._styles(); self._shell(); self._dashboard(); self._devices(); self._decor(); self._integrations(); self._updates(); self._settings()
         self.show_page("dashboard")
         self.after(150, self._poll)
@@ -647,8 +648,9 @@ class App(tk.Tk):
             from serial.tools import list_ports
             # Physical ESP boards expose a USB VID. This excludes motherboard
             # COM ports such as COM1 from being mistaken for an extra device.
-            return [p.device for p in list_ports.comports() if p.vid is not None] or [str(load_config()["serial_port"])]
-        except Exception: return [str(load_config()["serial_port"])]
+            return [p.device for p in list_ports.comports() if p.vid is not None]
+        except Exception:
+            return []
 
     def refresh_ports(self):
         ports = self._serial_ports(); self.port_box.configure(values=ports)
@@ -677,8 +679,52 @@ class App(tk.Tk):
                 client.sendall(payload.encode("ascii")); return client.recv(16).strip() == b"OK"
         except OSError: return False
 
+    def _probe_bridge_device(self, config, port):
+        timeout = max(
+            1.5,
+            float(config.get("reset_delay", 2.0))
+            + float(config.get("serial_timeout", 1.0))
+            + 0.75,
+        )
+        try:
+            with socket.create_connection((str(config["host"]), int(config["port"])), timeout=timeout) as client:
+                client.settimeout(timeout)
+                token = str(config.get("bridge_auth_token", "")).strip()
+                command = f"PROBE {port}"
+                payload = f"TOKEN {token} {command}\n" if token else f"{command}\n"
+                client.sendall(payload.encode("ascii"))
+                return client.recv(16).strip() == b"OK"
+        except OSError:
+            return False
+
+    def _connection_snapshot(self):
+        config = load_config()
+        bridge_online = self._ping_bridge()
+        devices = {
+            str(device.get("port", "")): False
+            for device in config.get("devices", [])
+            if str(device.get("port", "")).strip()
+        }
+        if not devices:
+            devices[str(config["serial_port"])] = False
+        if bridge_online:
+            for port in devices:
+                devices[port] = self._probe_bridge_device(config, port)
+        return {"bridge": bridge_online, "devices": devices}
+
     def _check_connection(self):
-        threading.Thread(target=lambda: self.result_queue.put(("bridge", "online" if self._ping_bridge() else "offline")), daemon=True).start()
+        if self._connection_check_running:
+            return
+        self._connection_check_running = True
+
+        def run():
+            try:
+                snapshot = self._connection_snapshot()
+                self.result_queue.put(("connection", json.dumps(snapshot)))
+            finally:
+                self._connection_check_running = False
+
+        threading.Thread(target=run, daemon=True).start()
 
     def _set_status_view(self):
         status = read_state().get("status", "OFF") or "OFF"
@@ -728,12 +774,25 @@ class App(tk.Tk):
         try:
             while True:
                 kind, value = self.result_queue.get_nowait()
-                if kind == "bridge":
-                    online = value == "online"; label = "●  Đã kết nối" if online else "●  Mất kết nối"; color = GREEN if online else RED
+                if kind == "connection":
+                    snapshot = json.loads(value)
+                    bridge_online = bool(snapshot.get("bridge"))
+                    devices = snapshot.get("devices", {})
+                    physical_online = any(devices.values())
+                    if not bridge_online:
+                        label, metric, color = "●  Bridge ngoại tuyến", "Offline", RED
+                    elif physical_online:
+                        label, metric, color = "●  Đã kết nối", "Online", GREEN
+                    else:
+                        label, metric, color = "●  Chưa kết nối thiết bị", "No device", RED
                     self.connection_pill.configure(text=label, fg=color)
-                    for status_label in self.device_status_labels.values():
-                        status_label.configure(text=label, fg=color)
-                    self.metric_connection.configure(text="Online" if online else "Offline", fg=color)
+                    self.metric_connection.configure(text=metric, fg=color)
+                    for port, status_label in self.device_status_labels.items():
+                        online = bool(devices.get(port, False))
+                        status_label.configure(
+                            text="●  Đã kết nối" if online else "●  Mất kết nối",
+                            fg=GREEN if online else RED,
+                        )
                 elif kind == "error": self.connection_pill.configure(text="●  Gửi thất bại", fg=RED)
                 elif kind == "sent": self._check_connection()
                 elif kind == "decor":

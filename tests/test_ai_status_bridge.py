@@ -119,6 +119,16 @@ class DeviceRouterTests(unittest.TestCase):
             router.controller_for("COM5", self.config([]))
         self.assertEqual(router.resume("COM5"), ["COM5"])
 
+    def test_probe_checks_the_requested_physical_device(self):
+        config = self.config([{"port": "COM5", "provider": "codex", "project": "C:/one"}])
+        router = DeviceRouter()
+        controller = MagicMock()
+        with patch("ai_status_bridge.load_config", return_value=config), patch.object(
+            router, "controller_for", return_value=controller
+        ):
+            self.assertEqual(router.probe("COM5"), ["COM5"])
+        controller.probe.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()

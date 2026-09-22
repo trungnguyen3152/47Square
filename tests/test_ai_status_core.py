@@ -114,6 +114,25 @@ class StatusTests(unittest.TestCase):
             [b"CHALLENGE\n", f"AUTH {signature} GREEN 2\n".encode()],
         )
 
+    def test_serial_controller_probe_requires_valid_device_info(self):
+        connection = MagicMock()
+        connection.is_open = True
+        controller = SerialController({**DEFAULT_CONFIG, "device_auth_key": "11" * 32})
+        controller._serial = connection
+        with patch.object(controller, "_authenticated_request", return_value="INFO 1.1.0 ABC123"):
+            self.assertEqual(controller.probe(), ("1.1.0", "ABC123"))
+
+    def test_serial_controller_probe_rejects_stale_serial_handle(self):
+        connection = MagicMock()
+        connection.is_open = True
+        controller = SerialController({**DEFAULT_CONFIG, "device_auth_key": "11" * 32})
+        controller._serial = connection
+        with patch.object(controller, "_authenticated_request", side_effect=OSError("device gone")):
+            with self.assertRaises(OSError):
+                controller.probe()
+        connection.close.assert_called_once_with()
+        self.assertIsNone(controller._serial)
+
     @patch("ai_status_core.socket.create_connection")
     def test_bridge_protocol(self, create_connection):
         client = MagicMock()

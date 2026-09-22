@@ -82,6 +82,9 @@ class StatusRequestHandler(socketserver.StreamRequestHandler):
             elif len(parts) == 2 and parts[0].upper() == "RESUME":
                 target_port = parts[1]
                 delivered = self.server.router.resume(target_port)  # type: ignore[attr-defined]
+            elif len(parts) == 2 and parts[0].upper() == "PROBE":
+                target_port = parts[1]
+                delivered = self.server.router.probe(target_port)  # type: ignore[attr-defined]
             elif len(parts) == 3 and parts[0].upper() == "STATUS":
                 provider, command = parts[1], parts[2]
             elif len(parts) == 4 and parts[0].upper() == "STATUS2":
@@ -89,7 +92,7 @@ class StatusRequestHandler(socketserver.StreamRequestHandler):
                 project = base64.urlsafe_b64decode(encoded.encode("ascii")).decode("utf-8")
             elif len(parts) == 3 and parts[0].upper() == "DEVICE":
                 target_port, command = parts[1], parts[2]
-            if parts[0].upper() not in {"DECOR", "DECOR_OFF", "RELEASE", "RESUME"}:
+            if parts[0].upper() not in {"DECOR", "DECOR_OFF", "RELEASE", "RESUME", "PROBE"}:
                 delivered = self.server.router.send(  # type: ignore[attr-defined]
                     command, provider=provider, project=project, target_port=target_port
                 )
@@ -221,6 +224,21 @@ class DeviceRouter:
         with self.lock:
             self.suspended_ports.discard(target_port.casefold())
         return [target_port]
+
+    def probe(self, target_port: str) -> list[str]:
+        config = load_config()
+        target = next(
+            (
+                device for device in self.devices(config)
+                if device["port"].casefold() == target_port.casefold()
+            ),
+            None,
+        )
+        if target is None:
+            return []
+        with self.lock:
+            self.controller_for(target["port"], config).probe()
+        return [target["port"]]
 
     def close(self) -> None:
         for controller in self.controllers.values():

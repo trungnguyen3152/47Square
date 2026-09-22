@@ -295,6 +295,22 @@ class SerialController:
                 self.connect()
             self._write_payload(b"DECOR_OFF\n")
 
+    def probe(self) -> tuple[str, str]:
+        """Verify that the configured serial port is a responding status light."""
+        with self._lock:
+            try:
+                if self._serial is None or not self._serial.is_open:
+                    self.connect()
+                response = self._authenticated_request("INFO")
+            except (OSError, serial.SerialException) as exc:
+                self.close()
+                raise OSError(str(exc)) from exc
+        parts = response.split()
+        if len(parts) != 3 or parts[0] != "INFO":
+            self.close()
+            raise OSError(f"device returned invalid information: {response or 'no response'}")
+        return parts[1], parts[2]
+
     def _write_payload(self, payload: bytes) -> None:
         assert self._serial is not None
         try:
@@ -320,6 +336,18 @@ class SerialController:
             self._serial.flush()
             return
         command = payload.decode("ascii").strip()
+        response = self._authenticated_request(command)
+        if response != "OK":
+            raise OSError(f"device rejected authenticated command: {response or 'no response'}")
+
+    def _authenticated_request(self, command: str) -> str:
+        assert self._serial is not None
+        auth_key = str(self.config.get("device_auth_key", "")).strip()
+        if not auth_key:
+            self._serial.reset_input_buffer()
+            self._serial.write(f"{command}\n".encode("ascii"))
+            self._serial.flush()
+            return self._serial.readline().decode("ascii", errors="replace").strip()
         self._serial.reset_input_buffer()
         self._serial.write(b"CHALLENGE\n")
         self._serial.flush()
@@ -334,9 +362,7 @@ class SerialController:
         ).hexdigest()
         self._serial.write(f"AUTH {signature} {command}\n".encode("ascii"))
         self._serial.flush()
-        response = self._serial.readline().decode("ascii", errors="replace").strip()
-        if response != "OK":
-            raise OSError(f"device rejected authenticated command: {response or 'no response'}")
+        return self._serial.readline().decode("ascii", errors="replace").strip()
 
 
 def send_direct(status: str, config: Mapping[str, Any]) -> None:
