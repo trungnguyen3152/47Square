@@ -163,7 +163,15 @@ def send_to_bridge(
 ) -> None:
     command = normalize_status(status)
     address = (str(config["host"]), int(config["port"]))
-    timeout = float(config["client_timeout"])
+    # A non-static status effect is sent after the firmware finishes its beep
+    # envelope. Three active-buzzer pulses take about 0.8 s, so the original
+    # 0.75 s client timeout caused the hook to retry GREEN several times.
+    # Keep the base timeout for silent commands and scale safely for beeps.
+    beep_count = int(config.get("status_beeps", {}).get(command, 0)) if command != "OFF" else 0
+    timeout = max(
+        float(config["client_timeout"]),
+        float(config.get("serial_timeout", 1.0)) + 0.5 + beep_count * 0.3,
+    )
     with socket.create_connection(address, timeout=timeout) as client:
         client.settimeout(timeout)
         if target_port:

@@ -354,11 +354,11 @@ void printFirmwareDebug() {
 }
 
 void beepOnce() {
-  // This pulse supports an active buzzer and remains audible on a passive one.
+  // D4 drives an active buzzer: one HIGH envelope must equal one audible beep.
+  // Applying the tone API here rapidly power-cycles the buzzer's internal oscillator
+  // and makes a single configured beep sound like several short chirps.
   writeOutput(BUZZER_PIN, true);
-  tone(BUZZER_PIN, 2400, 180);
-  delay(190);
-  noTone(BUZZER_PIN);
+  delay(180);
   writeOutput(BUZZER_PIN, false);
 }
 

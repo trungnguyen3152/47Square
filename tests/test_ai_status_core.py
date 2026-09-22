@@ -171,6 +171,17 @@ class StatusTests(unittest.TestCase):
         client.sendall.assert_called_once_with(b"YELLOW\n")
 
     @patch("ai_status_core.socket.create_connection")
+    def test_bridge_timeout_allows_three_beeps_before_effect(self, create_connection):
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.recv.return_value = b"OK\n"
+        create_connection.return_value = client
+        config = {**DEFAULT_CONFIG, "client_timeout": 0.75, "status_beeps": {"RED": 0, "YELLOW": 0, "GREEN": 3}}
+        send_to_bridge("green", config)
+        self.assertEqual(create_connection.call_args.kwargs["timeout"], 2.4)
+        client.settimeout.assert_called_once_with(2.4)
+
+    @patch("ai_status_core.socket.create_connection")
     def test_bridge_provider_protocol(self, create_connection):
         client = MagicMock()
         client.__enter__.return_value = client
