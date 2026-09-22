@@ -15,7 +15,14 @@ from ai_status_core import load_config, send_decor_to_bridge, send_to_bridge, st
 from ai_status_hook import read_state, set_hook_status
 from ai_status_integrations import INTEGRATIONS, install_integration, integration_state
 from ai_status_projects import canonical_project, discover_projects
-from ai_status_updates import GitHubReleaseClient, inspect_device, install_firmware, is_newer_version
+from ai_status_updates import (
+    FirmwareRollbackError,
+    GitHubReleaseClient,
+    SupabaseDeviceEventClient,
+    inspect_device,
+    install_firmware,
+    is_newer_version,
+)
 
 ROOT = Path(__file__).resolve().parent
 EVENT_LOG = ROOT / "integration-events.jsonl"
@@ -561,8 +568,43 @@ class App(tk.Tk):
                 config = load_config()
                 client = GitHubReleaseClient(str(config["github_repository"]), str(config["firmware_asset_name"]), str(config["update_channel"]))
                 firmware = client.download(release, ROOT / "updates" / release.asset_name, progress)
+                event_client = SupabaseDeviceEventClient.from_config(config)
                 for device in config.get("devices", []):
-                    install_firmware(config, device, firmware, progress)
+                    previous_version, hardware_id = inspect_device(config, device)
+                    event_token = str(device.get("event_token", ""))
+
+                    def record(event_type: str, version: str, metadata: dict[str, object]) -> None:
+                        if event_client is not None and event_token:
+                            event_client.record(hardware_id, event_token, event_type, version, metadata)
+
+                    record("firmware_update_started", previous_version, {
+                        "target_version": release.version,
+                        "source": "github-release",
+                    })
+                    try:
+                        result = install_firmware(
+                            config, device, firmware, progress, expected_version=release.version
+                        )
+                    except FirmwareRollbackError as exc:
+                        record("firmware_rollback", previous_version, {
+                            "target_version": release.version,
+                            "reason": str(exc),
+                        })
+                        raise
+                    except Exception as exc:
+                        try:
+                            record("firmware_update_failed", previous_version, {
+                                "target_version": release.version,
+                                "reason": str(exc),
+                            })
+                        except Exception:
+                            pass
+                        raise
+                    record("firmware_update_succeeded", result.current_version, {
+                        "previous_version": result.previous_version,
+                        "target_version": release.version,
+                        "device_status": result.update_status,
+                    })
                 self.result_queue.put(("update-done", release.version))
             except Exception as exc:
                 self.result_queue.put(("update-error", str(exc)))

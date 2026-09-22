@@ -12,6 +12,8 @@
   "firmware_asset_name": "ai-status-light-esp32c3.bin",
   "update_channel": "stable",
   "auto_check_updates": true,
+  "supabase_url": "",
+  "supabase_publishable_key": "",
   "green_hold_seconds": 0.0,
   "typing_process_names": ["ChatGPT.exe"],
   "status_beeps": {"RED": 0, "YELLOW": 0, "GREEN": 2},

@@ -37,6 +37,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "firmware_asset_name": "ai-status-light-esp32c3.bin",
     "update_channel": "stable",
     "auto_check_updates": True,
+    "supabase_url": "",
+    "supabase_publishable_key": "",
     "green_hold_seconds": 0.0,
     "typing_process_names": ["ChatGPT.exe"],
     "status_beeps": {"RED": 0, "YELLOW": 0, "GREEN": 2},
@@ -130,8 +132,11 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
         provider = str(device.get("provider", "")).strip()
         project = canonical_project(device.get("project", ""))
         auth_key = str(device.get("auth_key", "")).strip()
+        event_token = str(device.get("event_token", "")).strip()
         if auth_key and (len(auth_key) != 64 or any(character not in "0123456789abcdefABCDEF" for character in auth_key)):
             raise ValueError("device auth_key must be exactly 64 hexadecimal characters")
+        if event_token and (len(event_token) != 64 or any(character not in "0123456789abcdefABCDEF" for character in event_token)):
+            raise ValueError("device event_token must be exactly 64 hexadecimal characters")
         if port in seen_ports:
             raise ValueError("device serial ports must be unique")
         assignment = (provider, project)

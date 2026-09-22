@@ -3,6 +3,7 @@
 // D4/GPIO6=active buzzer.
 
 #include <esp_system.h>
+#include <esp_ota_ops.h>
 #include <mbedtls/md.h>
 #include <mbedtls/sha256.h>
 #include <Preferences.h>
@@ -25,8 +26,13 @@ Preferences preferences;
 
 bool firmwareUpdateActive = false;
 size_t firmwareBytesRemaining = 0;
+size_t firmwareChunkBytesRemaining = 0;
 uint8_t firmwareExpectedSha256[32];
 mbedtls_sha256_context firmwareSha256;
+uint32_t firmwareLastByteAt = 0;
+constexpr uint32_t FIRMWARE_RECEIVE_TIMEOUT_MS = 30000;
+constexpr size_t FIRMWARE_CHUNK_SIZE = 256;
+String firmwareTargetVersion;
 
 enum DecorEffect : uint8_t {
   DECOR_NONE, DECOR_STATIC, DECOR_BLINK, DECOR_BREATHING,
@@ -34,6 +40,14 @@ enum DecorEffect : uint8_t {
   DECOR_RAINBOW, DECOR_THEATER, DECOR_COMET, DECOR_METEOR,
   DECOR_SCANNER, DECOR_SPARKLE, DECOR_POLICE
 };
+
+#ifdef CONFIG_APP_ROLLBACK_ENABLE
+// Arduino otherwise validates a pending OTA image inside initArduino(), before
+// setup() can run our device checks or the intentional rollback diagnostic.
+extern "C" bool verifyRollbackLater() {
+  return true;
+}
+#endif
 
 constexpr uint8_t LED_PINS[] = {RED_PIN, YELLOW_PIN, GREEN_PIN};
 DecorEffect decorEffect = DECOR_NONE;
@@ -139,7 +153,18 @@ void beginFirmwareUpdate(const String &value) {
     return;
   }
   const size_t updateSize = static_cast<size_t>(value.substring(13, sizeEnd).toInt());
-  const String expectedSha = value.substring(sizeEnd + 1);
+  const int shaEnd = value.indexOf(' ', sizeEnd + 1);
+  const String expectedSha = shaEnd < 0
+    ? value.substring(sizeEnd + 1)
+    : value.substring(sizeEnd + 1, shaEnd);
+  if (shaEnd < 0) {
+    preferences.begin("ai-status", true);
+    firmwareTargetVersion = preferences.getString("ota-target", "unknown");
+    preferences.end();
+  } else {
+    firmwareTargetVersion = value.substring(shaEnd + 1);
+  }
+  firmwareTargetVersion.trim();
   if (updateSize == 0 || updateSize > 0x140000 ||
       !decodeHex(expectedSha, firmwareExpectedSha256, sizeof(firmwareExpectedSha256))) {
     Serial.println("UPDATE ERROR FORMAT");
@@ -157,10 +182,38 @@ void beginFirmwareUpdate(const String &value) {
     return;
   }
   firmwareBytesRemaining = updateSize;
+  firmwareChunkBytesRemaining = min(FIRMWARE_CHUNK_SIZE, firmwareBytesRemaining);
   firmwareUpdateActive = true;
+  firmwareLastByteAt = millis();
+  preferences.begin("ai-status", false);
+  const esp_partition_t *sourcePartition = esp_ota_get_running_partition();
+  preferences.putString("ota-previous", FIRMWARE_VERSION);
+  preferences.putString("ota-target", firmwareTargetVersion);
+  preferences.putString("ota-result", "started");
+  preferences.putString("ota-source", sourcePartition == nullptr ? "" : sourcePartition->label);
+  preferences.end();
   decorActive = false;
   setLights(false, true, false);
   Serial.println("READY");
+}
+
+void saveFirmwareUpdateResult(const char *result) {
+  preferences.begin("ai-status", false);
+  preferences.putString("ota-result", result);
+  preferences.end();
+}
+
+void abortFirmwareUpdate(const char *message, const char *result) {
+  if (firmwareUpdateActive) {
+    mbedtls_sha256_free(&firmwareSha256);
+  }
+  firmwareUpdateActive = false;
+  firmwareBytesRemaining = 0;
+  firmwareChunkBytesRemaining = 0;
+  Update.abort();
+  saveFirmwareUpdateResult(result);
+  setLights(true, false, false);
+  Serial.println(message);
 }
 
 void finishFirmwareUpdate() {
@@ -174,11 +227,13 @@ void finishFirmwareUpdate() {
   firmwareUpdateActive = false;
   if (!hashFinished || difference != 0) {
     Update.abort();
+    saveFirmwareUpdateResult("sha256-error");
     setLights(true, false, false);
     Serial.println("UPDATE ERROR SHA256");
     return;
   }
   if (!Update.end()) {
+    saveFirmwareUpdateResult("write-error");
     setLights(true, false, false);
     Serial.println("UPDATE ERROR WRITE");
     return;
@@ -192,22 +247,110 @@ void finishFirmwareUpdate() {
 
 void receiveFirmwareBytes() {
   uint8_t buffer[1024];
-  while (firmwareUpdateActive && firmwareBytesRemaining > 0 && Serial.available() > 0) {
-    const size_t requested = min(sizeof(buffer), firmwareBytesRemaining);
+  while (firmwareUpdateActive && firmwareChunkBytesRemaining > 0 && Serial.available() > 0) {
+    const size_t requested = min(sizeof(buffer), firmwareChunkBytesRemaining);
     const size_t received = Serial.readBytes(buffer, min(requested, static_cast<size_t>(Serial.available())));
     if (received == 0) return;
     if (Update.write(buffer, received) != received ||
         mbedtls_sha256_update(&firmwareSha256, buffer, received) != 0) {
-      firmwareUpdateActive = false;
-      mbedtls_sha256_free(&firmwareSha256);
-      Update.abort();
-      setLights(true, false, false);
-      Serial.println("UPDATE ERROR WRITE");
+      abortFirmwareUpdate("UPDATE ERROR WRITE", "write-error");
       return;
     }
     firmwareBytesRemaining -= received;
+    firmwareChunkBytesRemaining -= received;
+    firmwareLastByteAt = millis();
   }
-  if (firmwareUpdateActive && firmwareBytesRemaining == 0) finishFirmwareUpdate();
+  if (!firmwareUpdateActive || firmwareChunkBytesRemaining > 0) return;
+  if (firmwareBytesRemaining == 0) {
+    finishFirmwareUpdate();
+    return;
+  }
+  firmwareChunkBytesRemaining = min(FIRMWARE_CHUNK_SIZE, firmwareBytesRemaining);
+  Serial.println("ACK");
+}
+
+void confirmOrRollbackFirmware() {
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_ota_img_states_t state;
+  preferences.begin("ai-status", false);
+  const String target = preferences.getString("ota-target", "");
+  const String previous = preferences.getString("ota-previous", "");
+  const String sourceLabel = preferences.getString("ota-source", "");
+  const String otaResult = preferences.getString("ota-result", "none");
+  const bool forceRollback = preferences.getBool("ota-force", false);
+  preferences.end();
+
+  // Arduino's prebuilt bootloader variants do not all enable native rollback.
+  // Keep a verified application-level fallback by returning to the exact
+  // partition that initiated the update.
+  if (forceRollback && otaResult == "started" &&
+      !sourceLabel.isEmpty() && sourceLabel != running->label) {
+    const esp_partition_t *source = esp_partition_find_first(
+      ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, sourceLabel.c_str()
+    );
+    if (source != nullptr && esp_ota_set_boot_partition(source) == ESP_OK) {
+      preferences.begin("ai-status", false);
+      preferences.putString("ota-result", "rollback-requested");
+      preferences.putBool("ota-force", false);
+      preferences.end();
+      ESP.restart();
+      return;
+    }
+  }
+
+  if (esp_ota_get_state_partition(running, &state) == ESP_OK &&
+      state == ESP_OTA_IMG_PENDING_VERIFY) {
+    if (forceRollback) {
+      preferences.begin("ai-status", false);
+      preferences.putString("ota-result", "rollback-requested");
+      preferences.putBool("ota-force", false);
+      preferences.end();
+      esp_ota_mark_app_invalid_rollback_and_reboot();
+      return;
+    }
+    if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+      preferences.begin("ai-status", false);
+      if (otaResult != "rollback-requested") {
+        preferences.putString("ota-result", "success");
+      }
+      preferences.putBool("ota-force", false);
+      preferences.end();
+    }
+    return;
+  }
+
+  if (!target.isEmpty() && target != "unknown" && target != FIRMWARE_VERSION &&
+      !previous.isEmpty() && previous == FIRMWARE_VERSION) {
+    preferences.begin("ai-status", false);
+    preferences.putString("ota-result", "rollback");
+    preferences.putBool("ota-force", false);
+    preferences.end();
+  }
+}
+
+void printFirmwareUpdateStatus() {
+  preferences.begin("ai-status", true);
+  const String result = preferences.getString("ota-result", "none");
+  const String target = preferences.getString("ota-target", "none");
+  preferences.end();
+  Serial.printf("UPDATE_STATUS %s %s\n", result.c_str(), target.c_str());
+}
+
+void printFirmwareDebug() {
+  preferences.begin("ai-status", true);
+  const String result = preferences.getString("ota-result", "none");
+  const String source = preferences.getString("ota-source", "none");
+  const bool forceRollback = preferences.getBool("ota-force", false);
+  preferences.end();
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
+  esp_ota_get_state_partition(running, &state);
+  Serial.printf(
+    "OTA_DEBUG %s %s %s %u %u\n",
+    running == nullptr ? "none" : running->label,
+    source.c_str(), result.c_str(), forceRollback ? 1 : 0,
+    static_cast<unsigned int>(state)
+  );
 }
 
 void beepOnce() {
@@ -440,6 +583,40 @@ void processSerialCommand(String value) {
     );
     return;
   }
+  if (plainCommand == "UPDATE_STATUS") {
+    printFirmwareUpdateStatus();
+    return;
+  }
+  if (plainCommand == "OTA_DEBUG") {
+    printFirmwareDebug();
+    return;
+  }
+  if (plainCommand.startsWith("UPDATE_TARGET ")) {
+    const String target = plainCommand.substring(14);
+    if (target.isEmpty() || target.length() > 32) {
+      Serial.println("UPDATE ERROR VERSION");
+      return;
+    }
+    preferences.begin("ai-status", false);
+    preferences.putString("ota-target", target);
+    preferences.end();
+    Serial.println("OK");
+    return;
+  }
+  if (plainCommand == "TEST_ROLLBACK_NEXT_BOOT") {
+    preferences.begin("ai-status", false);
+    preferences.putBool("ota-force", true);
+    preferences.end();
+    Serial.println("OK");
+    return;
+  }
+  if (plainCommand == "TEST_ROLLBACK_CANCEL") {
+    preferences.begin("ai-status", false);
+    preferences.putBool("ota-force", false);
+    preferences.end();
+    Serial.println("OK");
+    return;
+  }
   if (plainCommand.startsWith("UPDATE_BEGIN ")) {
     beginFirmwareUpdate(plainCommand);
     return;
@@ -463,12 +640,16 @@ void setup() {
     preferences.putString("auth-key", deviceAuthKey);
   }
   preferences.end();
+  confirmOrRollbackFirmware();
   randomSeed(micros());
 }
 
 void loop() {
   if (firmwareUpdateActive) {
     receiveFirmwareBytes();
+    if (firmwareUpdateActive && millis() - firmwareLastByteAt > FIRMWARE_RECEIVE_TIMEOUT_MS) {
+      abortFirmwareUpdate("UPDATE ERROR TIMEOUT", "timeout");
+    }
     return;
   }
   while (Serial.available() > 0) {
@@ -477,6 +658,10 @@ void loop() {
       if (!command.isEmpty()) {
         processSerialCommand(command);
         command = "";
+        // UPDATE_BEGIN switches the port from line commands to raw firmware
+        // bytes. Return immediately so the command parser cannot consume the
+        // first OTA block that may already be queued by the host.
+        if (firmwareUpdateActive) return;
       }
     } else if (command.length() < 160) {
       command += next;

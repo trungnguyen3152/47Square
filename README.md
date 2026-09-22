@@ -67,6 +67,10 @@ Trang **Cập nhật** nhận repository theo dạng `owner/repository`, gọi G
 API, chọn asset `ai-status-light-esp32c3.bin`, kiểm tra digest SHA-256 do GitHub trả
 về rồi truyền firmware qua USB bằng phiên cập nhật HMAC. ESP32 ghi ảnh mới vào phân
 vùng OTA không hoạt động, xác minh lại SHA-256 và chỉ sau đó mới đổi phân vùng boot.
+Firmware 1.1 dùng ACK cho từng khối 256 byte để không làm tràn bộ đệm USB của
+XIAO ESP32-C3. Nếu mất dữ liệu hơn 30 giây, phân vùng đang ghi bị hủy và firmware
+đang chạy được giữ nguyên. Trước khi cập nhật, thiết bị lưu phân vùng nguồn để có
+thể rollback ngay cả với biến thể bootloader Arduino không bật rollback native.
 
 Workflow `.github/workflows/firmware-release.yml` tự build và tạo Release khi push
 tag `ai-status-light-v*`. Ứng dụng chỉ chọn Release chứa đúng firmware asset nên có
@@ -74,6 +78,16 @@ thể dùng chung repository với website 47Square. Bản Release chung không 
 lần ở nhà máy rồi lưu trong NVS, vì vậy OTA giữ nguyên danh tính và khóa của từng
 ESP32. `config.json` và `firmware/security_config.h` chứa bí mật cục bộ nên đã bị
 loại khỏi Git; dùng các file `.example` làm mẫu.
+
+Thiết bị xuất xưởng cần được full-flash firmware 1.1 ít nhất một lần để nhận bảng
+phân vùng OTA. Những lần sau cập nhật hoàn toàn qua GitHub Release. Kết quả
+`started`, `succeeded`, `failed` và `rollback` được gửi qua RPC giới hạn quyền tới
+`device_events`; ứng dụng không chứa service-role key. Có thể chạy lại ba bài test
+phần cứng bằng:
+
+```powershell
+py -3 ai_status_ota_diagnostics.py build\esp32-rollback\firmware.ino.bin
+```
 
 ## 3. Kiểm tra
 
